@@ -115,8 +115,8 @@ def process_video(video_path, output_path, model, conf, fps=30, display_type='no
                     cv2.imshow('Detected Area', np.zeros_like(frame))
                 out.write(processed_frame)
 
-        if cv2.waitKey(1) & 0xFF == ord('q'):
-            break
+        # if cv2.waitKey(1) & 0xFF == ord('q'):
+        #     break
 
     cap.release()
     out.release()
