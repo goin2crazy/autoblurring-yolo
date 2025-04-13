@@ -92,8 +92,8 @@ def draw_rectangles(image: np.ndarray, zones: List[List[int]], color: Tuple[int,
         x1 = max(0, int(x - w/2))
         y1 = max(0, int(y - h/2))
 
-        x2 = min(image.shape[0]-1, (int(x + w/2)))
-        y2 = min(image.shape[1]-1, int(y + h/2))
+        x2 = int(x + w/2)
+        y2 = int(y + h/2)
 
         cv2.rectangle(drawn_image, (int(x1), int(y1)), (int(x2), int(y2)), color, thickness)
     return drawn_image
