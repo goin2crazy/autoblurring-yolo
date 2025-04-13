@@ -114,7 +114,7 @@ if __name__ == "__main__":
     # Process video if provided
     if args.video_path != 'none':
         output_video_path = os.path.splitext(args.video_path)[0] + "_blurred.mp4"
-        process_video(args.video_path, output_video_path, model, args.conf)
+        process_video(args.video_path, output_video_path, model, args.conf, display_type=args.type)
 
     # Process image if provided
     if args.image_path != 'none':

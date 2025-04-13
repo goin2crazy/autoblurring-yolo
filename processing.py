@@ -32,6 +32,7 @@ def process_frame(frame, model, conf):
 
 
 
+
 def process_video(video_path, output_path, model, conf, fps=30, display_type='none'):
     """
     Process a video, frame by frame, using the YOLO model and save the processed video.
@@ -45,83 +46,124 @@ def process_video(video_path, output_path, model, conf, fps=30, display_type='no
         fps (int): Frames per second for the output video.
         display_type (str):  "none", "all", "blur", "rectangle", "detect_area".
     """
-    # Open the video file
+    print(f"Display type: {display_type}")
     cap = cv2.VideoCapture(video_path)
     if not cap.isOpened():
         raise ValueError(f"Error: Could not open video at {video_path}")
 
-    # Get video properties
     frame_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     frame_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
     fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-    out = cv2.VideoWriter(output_path, fourcc, fps, (frame_width // 2, frame_height // 2)) # Divide frame size by 2
 
-    # Create windows if needed
-    if display_type in ["all", "blur", "rectangle", "detect_area"]:
+    output_base = os.path.splitext(output_path)[0]
+    writers = {}
+    output_paths = []
+
+    # Initialize VideoWriters based on display_type
+    if display_type != 'none':
+        output_original = f"{output_base}_original.mp4"
+        writers['original'] = cv2.VideoWriter(output_original, fourcc, fps, (frame_width, frame_height))
+        output_paths.append(output_original)
+
+    if display_type in ['all', 'blur']:
+        output_blurred = f"{output_base}_blurred.mp4"
+        writers['blurred'] = cv2.VideoWriter(output_blurred, fourcc, fps, (frame_width, frame_height))
+        print(output_paths)
+        output_paths.append(output_blurred)
+
+    if display_type in ['all', 'rectangle']:
+        output_rectangles = f"{output_base}_rectangles.mp4"
+        writers['rectangles'] = cv2.VideoWriter(output_rectangles, fourcc, fps, (frame_width, frame_height))
+        print(output_paths)
+        output_paths.append(output_rectangles)
+
+    if display_type in ['all', 'detect_area']:
+        output_detected_area = f"{output_base}_detected_area.mp4"
+        writers['detected_area'] = cv2.VideoWriter(output_detected_area, fourcc, fps, (frame_width, frame_height))
+        print(output_paths)
+        output_paths.append(output_detected_area)
+
+    # Create windows for display
+    windows = []
+    if display_type != 'none':
+        windows.append('Original')
         cv2.namedWindow('Original', cv2.WINDOW_NORMAL)
         cv2.resizeWindow('Original', 640, 480)
-    if display_type == "all":
-        cv2.namedWindow('Combined', cv2.WINDOW_NORMAL) # Changed window name
-        cv2.resizeWindow('Combined', 640, 480)
-
+        
+    if display_type == 'all':
+        windows.extend(['Blurred', 'Rectangles', 'Detected Area'])
+        for win in ['Blurred', 'Rectangles', 'Detected Area']:
+            cv2.namedWindow(win, cv2.WINDOW_NORMAL)
+            cv2.resizeWindow(win, 640, 480)
+    elif display_type == 'blur':
+        windows.append('Blurred')
+        cv2.namedWindow('Blurred', cv2.WINDOW_NORMAL)
+        cv2.resizeWindow('Blurred', 640, 480)
+    elif display_type == 'rectangle':
+        windows.append('Rectangles')
+        cv2.namedWindow('Rectangles', cv2.WINDOW_NORMAL)
+        cv2.resizeWindow('Rectangles', 640, 480)
+    elif display_type == 'detect_area':
+        windows.append('Detected Area')
+        cv2.namedWindow('Detected Area', cv2.WINDOW_NORMAL)
+        cv2.resizeWindow('Detected Area', 640, 480)
 
     while cap.isOpened():
         ret, frame = cap.read()
         if not ret:
-            print("Video finished.")
             break
-        processed_frame, zones = process_frame(frame, model, conf) # Get zones
 
-        if display_type == 'none':
-            out.write(processed_frame)
-        else:
-            if display_type == "all":
-                blurred_frame = blur_zones(frame, zones)
-                rect_frame = draw_rectangles(frame, zones)
-                if zones:
-                    detected_area = extract_image_region(frame, zones[0])
-                else:
-                    detected_area = np.zeros_like(frame)
+        # Process frame to get detection zones
+        _, zones = process_frame(frame, model, conf)
 
-                # Resize frames to half their original size
-                frame = cv2.resize(frame, (frame_width // 2, frame_height // 2))
-                blurred_frame = cv2.resize(blurred_frame, (frame_width // 2, frame_height // 2))
-                rect_frame = cv2.resize(rect_frame, (frame_width // 2, frame_height // 2))
-                detected_area = cv2.resize(detected_area, (frame_width // 2, frame_height // 2))
+        # Always write original frame if needed
+        if 'original' in writers:
+            writers['original'].write(frame)
 
-                # Create a combined frame
-                combined_frame = np.zeros((frame_height, frame_width, 3), dtype=np.uint8)
-                combined_frame[:frame_height // 2, :frame_width // 2] = frame
-                combined_frame[:frame_height // 2, frame_width // 2:] = blurred_frame
-                combined_frame[frame_height // 2:, :frame_width // 2] = rect_frame
-                combined_frame[frame_height // 2:, frame_width // 2:] = detected_area
+        # Handle different display types
+        if display_type == 'all':
+            blurred = blur_zones(frame.copy(), zones)
+            rectangles = draw_rectangles(frame.copy(), zones)
+            detected = extract_image_region(frame, zones[0]) if zones else np.zeros_like(frame)
+            
+            writers['blurred'].write(blurred)
+            writers['rectangles'].write(rectangles)
+            writers['detected_area'].write(detected)
+            
+            cv2.imshow('Original', frame)
+            cv2.imshow('Blurred', blurred)
+            cv2.imshow('Rectangles', rectangles)
+            cv2.imshow('Detected Area', detected)
 
-                cv2.imshow('Combined', combined_frame) # Show combined frame
-                out.write(combined_frame) # Save combined frame
-            elif display_type == "blur":
-                cv2.imshow('Original', frame)
-                cv2.imshow('Blurred', processed_frame)
-                out.write(processed_frame)
-            elif display_type == "rectangle":
-                rect_frame = draw_rectangles(frame, zones)
-                cv2.imshow('Original', frame)
-                cv2.imshow('Rectangles', rect_frame)
-                out.write(processed_frame)
-            elif display_type == "detect_area":
-                cv2.imshow('Original', frame)
-                if zones:
-                    cv2.imshow('Detected Area', extract_image_region(frame, zones[0]))
-                else:
-                    cv2.imshow('Detected Area', np.zeros_like(frame))
-                out.write(processed_frame)
+        elif display_type == 'blur':
+            blurred = blur_zones(frame.copy(), zones)
+            writers['blurred'].write(blurred)
+            cv2.imshow('Original', frame)
+            cv2.imshow('Blurred', blurred)
+
+        elif display_type == 'rectangle':
+            rectangles = draw_rectangles(frame.copy(), zones)
+            writers['rectangles'].write(rectangles)
+            cv2.imshow('Original', frame)
+            cv2.imshow('Rectangles', rectangles)
+
+        elif display_type == 'detect_area':
+            detected = extract_image_region(frame, zones[0]) if zones else np.zeros_like(frame)
+            writers['detected_area'].write(detected)
+            cv2.imshow('Original', frame)
+            cv2.imshow('Detected Area', detected)
 
         # if cv2.waitKey(1) & 0xFF == ord('q'):
         #     break
 
+    # Cleanup
     cap.release()
-    out.release()
-    cv2.destroyAllWindows()
-    print(f"Processed video saved to: {output_path}")
+    for writer in writers.values():
+        writer.release()
+    # cv2.destroyAllWindows()
+
+    print(f"Processed videos saved to: {', '.join(output_paths)}")
+
 
 def process_image(image_path, model, conf):
     """
